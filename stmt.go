@@ -9,7 +9,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/alexbrainman/odbc/api"
+	"github.com/freebytego/odbc-golang/api"
 )
 
 type Stmt struct {
@@ -34,7 +34,7 @@ func (s *Stmt) NumInput() int {
 	if s.os == nil {
 		return -1
 	}
-	return len(s.os.Parameters)
+	return 0
 }
 
 func (s *Stmt) Close() error {
@@ -61,7 +61,7 @@ func (s *Stmt) Exec(args []driver.Value) (driver.Result, error) {
 		}
 		s.os = os
 	}
-	err := s.os.Exec(args, s.c)
+	err := s.os.Exec(s.query, s.c)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (s *Stmt) Query(args []driver.Value) (driver.Rows, error) {
 		}
 		s.os = os
 	}
-	err := s.os.Exec(args, s.c)
+	err := s.os.Exec(s.query, s.c)
 	if err != nil {
 		return nil, err
 	}

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/alexbrainman/odbc/api"
+	"github.com/freebytego/odbc-golang/api"
 )
 
 type Stats struct {

@@ -5,22 +5,20 @@
 package odbc
 
 import (
-	"database/sql/driver"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 	"unsafe"
 
-	"github.com/alexbrainman/odbc/api"
+	"github.com/freebytego/odbc-golang/api"
 )
 
 // TODO(brainman): see if I could use SQLExecDirect anywhere
 
 type ODBCStmt struct {
-	h          api.SQLHSTMT
-	Parameters []Parameter
-	Cols       []Column
+	h     api.SQLHSTMT
+	query api.SQLWCHAR
+	Cols  []Column
 	// locking/lifetime
 	mu         sync.Mutex
 	usedByStmt bool
@@ -38,21 +36,8 @@ func (c *Conn) PrepareODBCStmt(query string) (*ODBCStmt, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	b := api.StringToUTF16(query)
-	ret = api.SQLPrepare(h, (*api.SQLWCHAR)(unsafe.Pointer(&b[0])), api.SQL_NTS)
-	if IsError(ret) {
-		defer releaseHandle(h)
-		return nil, c.newError("SQLPrepare", h)
-	}
-	ps, err := ExtractParameters(h)
-	if err != nil {
-		defer releaseHandle(h)
-		return nil, err
-	}
 	return &ODBCStmt{
 		h:          h,
-		Parameters: ps,
 		usedByStmt: true,
 	}, nil
 }
@@ -95,30 +80,18 @@ func (s *ODBCStmt) releaseHandle() error {
 
 var testingIssue5 bool // used during tests
 
-func (s *ODBCStmt) Exec(args []driver.Value, conn *Conn) error {
-	if len(args) != len(s.Parameters) {
-		return fmt.Errorf("wrong number of arguments %d, %d expected", len(args), len(s.Parameters))
-	}
-	for i, a := range args {
-		// this could be done in 2 steps:
-		// 1) bind vars right after prepare;
-		// 2) set their (vars) values here;
-		// but rebinding parameters for every new parameter value
-		// should be efficient enough for our purpose.
-		if err := s.Parameters[i].BindValue(s.h, i, a, conn); err != nil {
-			return err
-		}
-	}
+func (s *ODBCStmt) Exec(query string, conn *Conn) error {
 	if testingIssue5 {
 		time.Sleep(10 * time.Microsecond)
 	}
-	ret := api.SQLExecute(s.h)
+	b := api.StringToUTF16(query)
+	ret := api.SQLExecDirect(s.h, (*api.SQLWCHAR)(unsafe.Pointer(&b[0])), api.SQL_NTS)
 	if ret == api.SQL_NO_DATA {
 		// success but no data to report
 		return nil
 	}
 	if IsError(ret) {
-		return NewError("SQLExecute", s.h)
+		return NewError("SQLExecDirect", s.h)
 	}
 	return nil
 }
